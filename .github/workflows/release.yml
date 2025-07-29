@@ -21,7 +21,7 @@ jobs:
             archs: "arm64,amd64"
           - os: ubuntu-latest
             platform: linux
-            archs: "amd64,arm64"
+            archs: "amd64"
     runs-on: ${{ matrix.os }}
     steps:
     - uses: actions/checkout@v4
