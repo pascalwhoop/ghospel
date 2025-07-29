@@ -5,10 +5,12 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/pascalwhoop/ghospel/internal/audio"
 	"github.com/pascalwhoop/ghospel/internal/models"
 	"github.com/pascalwhoop/ghospel/internal/whisper"
+	"github.com/schollz/progressbar/v3"
 )
 
 // Options holds transcription configuration
@@ -73,24 +75,68 @@ func (s *Service) TranscribeFiles(inputs []string) error {
 		fmt.Printf("📁 Found %d audio file(s) to transcribe\n", len(audioFiles))
 	}
 
-	// TODO: Implement actual transcription pipeline
-	// For now, just create placeholder output files
-	for _, file := range audioFiles {
-		if err := s.transcribeFile(file); err != nil {
+	// Initialize progress bar for batch transcription
+	var bar *progressbar.ProgressBar
+	if !s.opts.Quiet && len(audioFiles) > 1 {
+		bar = progressbar.NewOptions(len(audioFiles),
+			progressbar.OptionSetDescription("Transcribing files"),
+			progressbar.OptionSetWriter(os.Stderr),
+			progressbar.OptionSetWidth(40),
+			progressbar.OptionShowCount(),
+			progressbar.OptionSetRenderBlankState(true),
+		)
+	}
+
+	// Track overall statistics
+	startTime := time.Now()
+	totalWords := 0
+	totalDuration := time.Duration(0)
+	successCount := 0
+	failedCount := 0
+
+	// Process each file
+	for i, file := range audioFiles {
+		fileStats, err := s.transcribeFile(file)
+		if err != nil {
+			failedCount++
 			if s.opts.Verbose {
 				fmt.Printf("❌ Failed to transcribe %s: %v\n", file, err)
 			}
-
-			continue
+		} else {
+			successCount++
+			totalWords += fileStats.WordCount
+			totalDuration += fileStats.Duration
+			if !s.opts.Quiet {
+				if len(audioFiles) == 1 {
+					fmt.Printf("✅ Transcribed: %s (%d words, %s duration)\n", 
+						filepath.Base(file), fileStats.WordCount, fileStats.Duration.Round(time.Second))
+				} else {
+					fmt.Printf("✅ [%d/%d] %s (%d words, %s)\n", 
+						i+1, len(audioFiles), filepath.Base(file), fileStats.WordCount, fileStats.Duration.Round(time.Second))
+				}
+			}
 		}
 
-		if !s.opts.Quiet {
-			fmt.Printf("✅ Transcribed: %s\n", filepath.Base(file))
+		// Update progress bar
+		if bar != nil {
+			bar.Add(1)
 		}
 	}
 
+	// Print summary statistics
 	if !s.opts.Quiet {
-		fmt.Println("🎉 Transcription complete!")
+		elapsed := time.Since(startTime)
+		fmt.Println("\n🎉 Transcription complete!")
+		fmt.Printf("📊 Summary: %d successful, %d failed\n", successCount, failedCount)
+		if totalWords > 0 {
+			fmt.Printf("📝 Total words transcribed: %d\n", totalWords)
+			fmt.Printf("⏱️  Total audio duration: %s\n", totalDuration.Round(time.Second))
+			fmt.Printf("🚀 Processing time: %s\n", elapsed.Round(time.Second))
+			if totalDuration > 0 {
+				ratio := elapsed.Seconds() / totalDuration.Seconds()
+				fmt.Printf("⚡ Speed: %.1fx realtime\n", 1.0/ratio)
+			}
+		}
 	}
 
 	return nil
@@ -164,20 +210,34 @@ func (s *Service) isAudioFile(path string, supportedExts []string) bool {
 	return false
 }
 
-// transcribeFile transcribes a single audio file
-func (s *Service) transcribeFile(inputPath string) error {
+// FileStats holds transcription statistics for a single file
+type FileStats struct {
+	WordCount int
+	Duration  time.Duration
+}
+
+// transcribeFile transcribes a single audio file and returns statistics
+func (s *Service) transcribeFile(inputPath string) (*FileStats, error) {
+	// Get audio duration before processing
+	audioInfo, err := s.audioProcessor.GetAudioInfo(inputPath)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get audio info: %w", err)
+	}
+
+	duration := s.parseAudioDuration(audioInfo["duration"])
+
 	// Determine output file path
 	outputPath := s.getOutputPath(inputPath)
 
 	// Step 1: Check if model is downloaded, download if needed
 	if err := s.ensureModelDownloaded(); err != nil {
-		return fmt.Errorf("model preparation failed: %w", err)
+		return nil, fmt.Errorf("model preparation failed: %w", err)
 	}
 
 	// Step 2: Convert audio to WAV using FFmpeg if needed
 	wavPath, needsCleanup, err := s.prepareAudioFile(inputPath)
 	if err != nil {
-		return fmt.Errorf("audio preparation failed: %w", err)
+		return nil, fmt.Errorf("audio preparation failed: %w", err)
 	}
 
 	// Clean up temporary WAV file if needed
@@ -188,16 +248,22 @@ func (s *Service) transcribeFile(inputPath string) error {
 	// Step 3: Run Whisper inference
 	transcription, err := s.whisperClient.Transcribe(wavPath, s.opts.Model)
 	if err != nil {
-		return fmt.Errorf("transcription failed: %w", err)
+		return nil, fmt.Errorf("transcription failed: %w", err)
 	}
+
+	// Count words in transcription
+	wordCount := s.countWords(transcription)
 
 	// Step 4: Format and save output
 	content := s.formatOutput(transcription, inputPath)
 	if err := os.WriteFile(outputPath, []byte(content), 0o644); err != nil {
-		return fmt.Errorf("failed to write output file: %w", err)
+		return nil, fmt.Errorf("failed to write output file: %w", err)
 	}
 
-	return nil
+	return &FileStats{
+		WordCount: wordCount,
+		Duration:  duration,
+	}, nil
 }
 
 // ensureModelDownloaded checks if the model exists and downloads it if needed
@@ -284,4 +350,43 @@ func (s *Service) getOutputPath(inputPath string) string {
 	ext := "." + s.opts.Format
 
 	return filepath.Join(dir, base+ext)
+}
+
+// parseAudioDuration parses FFmpeg duration format (HH:MM:SS.ms) into time.Duration
+func (s *Service) parseAudioDuration(durationStr string) time.Duration {
+	if durationStr == "" {
+		return 0
+	}
+
+	// Parse format like "00:01:23.45"
+	parts := strings.Split(durationStr, ":")
+	if len(parts) != 3 {
+		return 0
+	}
+
+	// Extract hours, minutes, and seconds
+	var hours, minutes, seconds float64
+	if h, err := time.ParseDuration(parts[0] + "h"); err == nil {
+		hours = h.Seconds()
+	}
+	if m, err := time.ParseDuration(parts[1] + "m"); err == nil {
+		minutes = m.Seconds()
+	}
+	if s, err := time.ParseDuration(parts[2] + "s"); err == nil {
+		seconds = s.Seconds()
+	}
+
+	totalSeconds := hours + minutes + seconds
+	return time.Duration(totalSeconds * float64(time.Second))
+}
+
+// countWords counts the number of words in a text string
+func (s *Service) countWords(text string) int {
+	if text == "" {
+		return 0
+	}
+
+	// Split by whitespace and count non-empty parts
+	words := strings.Fields(strings.TrimSpace(text))
+	return len(words)
 }
