@@ -107,8 +107,8 @@ jobs:
           elif [ "${{ matrix.platform }}" = "linux" ]; then
             cmake_flags="-DGGML_CCACHE=ON -DGGML_NATIVE=OFF"
             if [ "$arch" = "arm64" ]; then
-              # ARM64 cross-compilation - explicitly disable x86 features
-              cmake_flags="$cmake_flags -DCMAKE_SYSTEM_PROCESSOR=aarch64 -DCMAKE_C_COMPILER=aarch64-linux-gnu-gcc -DCMAKE_CXX_COMPILER=aarch64-linux-gnu-g++ -DGGML_AVX=OFF -DGGML_AVX2=OFF -DGGML_FMA=OFF -DGGML_F16C=OFF -DGGML_SSE3=OFF -DGGML_SSSE3=OFF -DGGML_SSE4=OFF"
+              # ARM64 cross-compilation - aggressively disable all x86 features
+              cmake_flags="$cmake_flags -DCMAKE_SYSTEM_PROCESSOR=aarch64 -DCMAKE_C_COMPILER=aarch64-linux-gnu-gcc -DCMAKE_CXX_COMPILER=aarch64-linux-gnu-g++ -DGGML_AVX=OFF -DGGML_AVX2=OFF -DGGML_AVX512=OFF -DGGML_FMA=OFF -DGGML_F16C=OFF -DGGML_SSE3=OFF -DGGML_SSSE3=OFF -DGGML_SSE4_1=OFF -DGGML_SSE4_2=OFF -DGGML_NATIVE=OFF -DCMAKE_C_FLAGS='-march=armv8-a' -DCMAKE_CXX_FLAGS='-march=armv8-a'"
             else
               # x86_64 - enable optimizations
               cmake_flags="$cmake_flags -DGGML_AVX=ON -DGGML_AVX2=ON -DGGML_FMA=ON"
