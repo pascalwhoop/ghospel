@@ -26,6 +26,7 @@ type Options struct {
 	CacheDir   string
 	Quiet      bool
 	Verbose    bool
+	Force      bool
 }
 
 // Service handles audio transcription
@@ -71,9 +72,42 @@ func (s *Service) TranscribeFiles(inputs []string) error {
 		return fmt.Errorf("no audio files found")
 	}
 
-	if !s.opts.Quiet {
-		fmt.Printf("📁 Found %d audio file(s) to transcribe\n", len(audioFiles))
+	// Filter out already transcribed files unless force flag is set
+	var filesToProcess []string
+	var skippedCount int
+	
+	for _, file := range audioFiles {
+		outputPath := s.getOutputPath(file)
+		if !s.opts.Force {
+			if _, err := os.Stat(outputPath); err == nil {
+				skippedCount++
+				if s.opts.Verbose {
+					fmt.Printf("⏭️  Skipping %s (already transcribed)\n", filepath.Base(file))
+				}
+				continue
+			}
+		}
+		filesToProcess = append(filesToProcess, file)
 	}
+
+	if !s.opts.Quiet {
+		if skippedCount > 0 {
+			fmt.Printf("📁 Found %d audio file(s), %d already transcribed, %d to process\n", 
+				len(audioFiles), skippedCount, len(filesToProcess))
+		} else {
+			fmt.Printf("📁 Found %d audio file(s) to transcribe\n", len(filesToProcess))
+		}
+	}
+
+	if len(filesToProcess) == 0 {
+		if !s.opts.Quiet {
+			fmt.Println("✅ All files already transcribed! Use --force to re-transcribe.")
+		}
+		return nil
+	}
+
+	// Update audioFiles to only include files to process
+	audioFiles = filesToProcess
 
 	// Initialize progress bar for batch transcription
 	var bar *progressbar.ProgressBar

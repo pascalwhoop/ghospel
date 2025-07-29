@@ -81,6 +81,11 @@ func TranscribeCommand() *cli.Command {
 				Aliases: []string{"q"},
 				Usage:   "Suppress progress bars and non-error output",
 			},
+			&cli.BoolFlag{
+				Name:    "force",
+				Aliases: []string{"F"},
+				Usage:   "Force re-transcription of files that already have output files",
+			},
 		},
 		Action: func(c *cli.Context) error {
 			if c.NArg() == 0 {
@@ -106,6 +111,7 @@ func TranscribeCommand() *cli.Command {
 				CacheDir:   c.String("cache-dir"),
 				Quiet:      c.Bool("quiet"),
 				Verbose:    c.Bool("verbose"),
+				Force:      c.Bool("force"),
 			}
 
 			// Apply config defaults
