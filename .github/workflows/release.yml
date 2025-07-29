@@ -190,6 +190,6 @@ jobs:
       with:
         distribution: goreleaser
         version: latest
-        args: release --clean
+        args: ${{ startsWith(github.ref, 'refs/tags/') && 'release --clean' || 'release --clean --snapshot' }}
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
