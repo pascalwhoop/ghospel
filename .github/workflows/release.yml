@@ -28,6 +28,17 @@ jobs:
       with:
         fetch-depth: 0
 
+    - name: Cache whisper.cpp build
+      uses: actions/cache@v4
+      with:
+        path: |
+          whisper_cpp_source/build
+          whisper_cpp_source/.git
+        key: whisper-cpp-${{ matrix.platform }}-${{ matrix.archs }}-${{ hashFiles('whisper_cpp_source/**/*.cpp', 'whisper_cpp_source/**/*.c', 'whisper_cpp_source/**/*.h', 'whisper_cpp_source/CMakeLists.txt', 'whisper_cpp_source/**/CMakeLists.txt') }}
+        restore-keys: |
+          whisper-cpp-${{ matrix.platform }}-${{ matrix.archs }}-
+          whisper-cpp-${{ matrix.platform }}-
+
     - name: Install dependencies (macOS)
       if: matrix.os == 'macos-latest'
       run: |
@@ -37,14 +48,38 @@ jobs:
       if: matrix.os == 'ubuntu-latest'
       run: |
         sudo apt-get update
-        sudo apt-get install -y cmake make build-essential
+        sudo apt-get install -y cmake make build-essential ccache
         # For ARM64 cross-compilation
         sudo apt-get install -y gcc-aarch64-linux-gnu g++-aarch64-linux-gnu
 
+    - name: Cache ccache
+      if: matrix.os == 'ubuntu-latest'
+      uses: actions/cache@v4
+      with:
+        path: ~/.ccache
+        key: ccache-${{ matrix.platform }}-${{ matrix.archs }}-${{ github.sha }}
+        restore-keys: |
+          ccache-${{ matrix.platform }}-${{ matrix.archs }}-
+          ccache-${{ matrix.platform }}-
+
+    - name: Configure ccache
+      if: matrix.os == 'ubuntu-latest'
+      run: |
+        echo "/usr/lib/ccache" >> $GITHUB_PATH
+        ccache --set-config=cache_dir=$HOME/.ccache
+        ccache --set-config=compression=true
+        ccache --set-config=max_size=500M
+        ccache --show-stats
+
     - name: Initialize submodule and build binaries
       run: |
-        # Initialize whisper.cpp submodule
-        make dev-setup
+        # Initialize whisper.cpp submodule if not already done
+        if [ ! -d "whisper_cpp_source/.git" ]; then
+          make dev-setup
+        else
+          echo "📦 Whisper.cpp submodule already initialized"
+          cd whisper_cpp_source && git submodule update --recursive && cd ..
+        fi
         
         # Create binaries directory
         mkdir -p internal/binaries
@@ -55,42 +90,62 @@ jobs:
         for arch in "${ARCH_ARRAY[@]}"; do
           echo "Building for ${{ matrix.platform }}-$arch"
           
+          binary_name="whisper-cli-${{ matrix.platform }}-$arch"
+          target_binary="../internal/binaries/$binary_name"
+          
+          # Check if binary already exists from cache
+          if [ -f "$target_binary" ]; then
+            echo "✅ Using cached binary $binary_name"
+            continue
+          fi
+          
           # Set up build directory
           build_dir="build-${{ matrix.platform }}-$arch"
-          rm -rf "$build_dir"
           
           # Set platform-specific flags
           cmake_flags=""
           if [ "${{ matrix.platform }}" = "darwin" ]; then
             if [ "$arch" = "arm64" ]; then
-              cmake_flags="-DCMAKE_OSX_ARCHITECTURES=arm64 -DGGML_METAL=ON -DGGML_METAL_EMBED_LIBRARY=ON"
+              cmake_flags="-DCMAKE_OSX_ARCHITECTURES=arm64 -DGGML_METAL=ON -DGGML_METAL_EMBED_LIBRARY=ON -DGGML_NATIVE=OFF"
             else
-              cmake_flags="-DCMAKE_OSX_ARCHITECTURES=x86_64 -DGGML_METAL=ON -DGGML_METAL_EMBED_LIBRARY=ON"
+              cmake_flags="-DCMAKE_OSX_ARCHITECTURES=x86_64 -DGGML_METAL=ON -DGGML_METAL_EMBED_LIBRARY=ON -DGGML_NATIVE=OFF -DGGML_AVX=ON -DGGML_AVX2=ON -DGGML_FMA=ON"
             fi
           elif [ "${{ matrix.platform }}" = "linux" ]; then
+            cmake_flags="-DGGML_CCACHE=ON -DGGML_NATIVE=OFF"
             if [ "$arch" = "arm64" ]; then
-              cmake_flags="-DCMAKE_SYSTEM_PROCESSOR=aarch64 -DCMAKE_C_COMPILER=aarch64-linux-gnu-gcc -DCMAKE_CXX_COMPILER=aarch64-linux-gnu-g++"
+              cmake_flags="$cmake_flags -DCMAKE_SYSTEM_PROCESSOR=aarch64 -DCMAKE_C_COMPILER=aarch64-linux-gnu-gcc -DCMAKE_CXX_COMPILER=aarch64-linux-gnu-g++"
+            else
+              cmake_flags="$cmake_flags -DGGML_AVX=ON -DGGML_AVX2=ON -DGGML_FMA=ON"
             fi
           fi
           
-          # Build
-          cmake -B "$build_dir" $cmake_flags \
-            -DCMAKE_BUILD_TYPE=Release \
-            -DWHISPER_BUILD_TESTS=OFF \
-            -DWHISPER_BUILD_SERVER=OFF
-          
-          cmake --build "$build_dir" -j$(nproc) --config Release
+          # Build only if build directory doesn't exist or is incomplete
+          if [ ! -f "$build_dir/bin/whisper-cli" ]; then
+            echo "🏗️ Building whisper.cpp..."
+            cmake -B "$build_dir" $cmake_flags \
+              -DCMAKE_BUILD_TYPE=Release \
+              -DWHISPER_BUILD_TESTS=OFF \
+              -DWHISPER_BUILD_SERVER=OFF
+            
+            cmake --build "$build_dir" -j$(nproc) --config Release
+          else
+            echo "✅ Using cached build for $arch"
+          fi
           
           # Copy binary
-          binary_name="whisper-cli-${{ matrix.platform }}-$arch"
           if [ -f "$build_dir/bin/whisper-cli" ]; then
-            cp "$build_dir/bin/whisper-cli" "../internal/binaries/$binary_name"
+            cp "$build_dir/bin/whisper-cli" "$target_binary"
             echo "✅ Built $binary_name"
           else
             echo "❌ Failed to build $binary_name"
             exit 1
           fi
         done
+        
+        # Show ccache stats on Linux
+        if [ "${{ matrix.platform }}" = "linux" ]; then
+          ccache --show-stats || true
+        fi
 
     - name: Upload binaries as artifacts
       uses: actions/upload-artifact@v4
@@ -112,6 +167,16 @@ jobs:
       uses: actions/setup-go@v5
       with:
         go-version: '1.21'
+
+    - name: Cache Go modules
+      uses: actions/cache@v4
+      with:
+        path: |
+          ~/.cache/go-build
+          ~/go/pkg/mod
+        key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
+        restore-keys: |
+          ${{ runner.os }}-go-
 
     - name: Download all binary artifacts
       uses: actions/download-artifact@v4
