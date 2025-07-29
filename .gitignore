@@ -63,7 +63,8 @@ internal/binaries/whisper-cli-*
 ghospel-dev
 ghospel-*
 
-# Submodule build directory
-whisper_cpp_source/
+# Submodule build directory (but not the submodule itself)
+whisper_cpp_source/build/
+whisper_cpp_source/models/
 
 .claude/

@@ -1,0 +1,3 @@
+[submodule "whisper_cpp_source"]
+	path = whisper_cpp_source
+	url = https://github.com/ggml-org/whisper.cpp.git
