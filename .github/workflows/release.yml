@@ -31,13 +31,11 @@ jobs:
     - name: Cache whisper.cpp build
       uses: actions/cache@v4
       with:
-        path: |
-          whisper_cpp_source/build
-          whisper_cpp_source/.git
-        key: whisper-cpp-${{ matrix.platform }}-${{ hashFiles(matrix.archs) }}-${{ hashFiles('whisper_cpp_source/**/*.cpp', 'whisper_cpp_source/**/*.c', 'whisper_cpp_source/**/*.h', 'whisper_cpp_source/CMakeLists.txt', 'whisper_cpp_source/**/CMakeLists.txt') }}
+        path: whisper_cpp_source/build
+        key: whisper-cpp-${{ matrix.platform }}-${{ hashFiles(matrix.archs) }}-${{ hashFiles('.gitmodules') }}-${{ github.sha }}
         restore-keys: |
+          whisper-cpp-${{ matrix.platform }}-${{ hashFiles(matrix.archs) }}-${{ hashFiles('.gitmodules') }}-
           whisper-cpp-${{ matrix.platform }}-${{ hashFiles(matrix.archs) }}-
-          whisper-cpp-${{ matrix.platform }}-
 
     - name: Install dependencies (macOS)
       if: matrix.os == 'macos-latest'
@@ -73,13 +71,9 @@ jobs:
 
     - name: Initialize submodule and build binaries
       run: |
-        # Initialize whisper.cpp submodule if not already done
-        if [ ! -d "whisper_cpp_source/.git" ]; then
-          make dev-setup
-        else
-          echo "📦 Whisper.cpp submodule already initialized"
-          cd whisper_cpp_source && git submodule update --recursive && cd ..
-        fi
+        # Initialize whisper.cpp submodule
+        echo "📦 Initializing whisper.cpp submodule..."
+        git submodule update --init --recursive
         
         # Create binaries directory
         mkdir -p internal/binaries
