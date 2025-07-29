@@ -1,4 +1,4 @@
-version: 2
+version: 1
 
 before:
   hooks:
@@ -32,23 +32,22 @@ archives:
       {{- else }}{{ .Arch }}{{ end }}
       {{- if .Arm }}v{{ .Arm }}{{ end }}
 
-brews:
-  - name: ghospel
-    homepage: https://github.com/pascalwhoop/ghospel
-    description: "A blazing-fast, privacy-first command-line audio transcription tool"
-    license: MIT
-    repository:
-      owner: pascalwhoop
-      name: homebrew-ghospel
-      branch: main
-    folder: Formula
-    dependencies:
-      - name: ffmpeg
-        type: required
-    install: |
-      bin.install "ghospel"
-    test: |
-      system "#{bin}/ghospel", "--version"
+brew:
+  name: ghospel
+  homepage: https://github.com/pascalwhoop/ghospel
+  description: "A blazing-fast, privacy-first command-line audio transcription tool"
+  license: MIT
+  tap:
+    owner: pascalwhoop
+    name: homebrew-ghospel
+    branch: main
+  folder: Formula
+  dependencies:
+    - ffmpeg
+  install: |
+    bin.install "ghospel"
+  test: |
+    system "#{bin}/ghospel", "--version"
 
 checksum:
   name_template: 'checksums.txt'
