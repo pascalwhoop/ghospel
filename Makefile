@@ -90,7 +90,7 @@ build-whisper: ## Build whisper.cpp with platform optimizations
 		exit 1; \
 	fi
 
-build: ## Build the Go application
+build: build-whisper ## Build the Go application
 	@echo "🏗️  Building $(GO_BINARY)..."
 	@go build -o $(GO_BINARY) ./cmd/ghospel
 	@echo "✅ $(GO_BINARY) built successfully!"

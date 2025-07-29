@@ -70,6 +70,8 @@ models and optimized for Apple Silicon.
 
 ### Install via Homebrew
 
+> ❗ not yet working, looking for someone to help me to get this brew'ed
+
 ```bash
 brew tap pascalwhoop/ghospel
 brew install ghospel
@@ -80,7 +82,9 @@ brew install ghospel
 ```bash
 git clone https://github.com/pascalwhoop/ghospel.git
 cd ghospel
-go build -o ghospel ./cmd/ghospel
+make dev-setup
+make release
+# optional, move into PATH
 sudo mv ghospel /usr/local/bin/
 ```
 
@@ -88,6 +92,9 @@ sudo mv ghospel /usr/local/bin/
 
 Download the latest release from [Releases](https://github.com/pascalwhoop/ghospel/releases) and add
 to your PATH.
+
+> ❗ Note this currently raises a security warning on macos. If someone wants to help
+> [check this issue](https://github.com/pascalwhoop/ghospel/issues/3)
 
 ## Quick Start
 
