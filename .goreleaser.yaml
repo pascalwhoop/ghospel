@@ -32,22 +32,8 @@ archives:
       {{- else }}{{ .Arch }}{{ end }}
       {{- if .Arm }}v{{ .Arm }}{{ end }}
 
-brews:
-  - name: ghospel
-    homepage: https://github.com/pascalwhoop/ghospel
-    description: "A blazing-fast, privacy-first command-line audio transcription tool"
-    license: MIT
-    tap:
-      owner: pascalwhoop
-      name: homebrew-ghospel
-      branch: main
-    folder: Formula
-    dependencies:
-      - ffmpeg
-    install: |
-      bin.install "ghospel"
-    test: |
-      system "#{bin}/ghospel", "--version"
+# Homebrew tap removed - focusing on GitHub releases only
+# See issue for future Homebrew support
 
 checksum:
   name_template: 'checksums.txt'
