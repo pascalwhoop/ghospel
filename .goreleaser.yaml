@@ -3,8 +3,7 @@ version: 2
 before:
   hooks:
     - go mod tidy
-    - make dev-setup
-    - ./scripts/build-release.sh
+    # Note: whisper.cpp binaries are built in CI matrix and combined here
 
 builds:
   - main: ./cmd/ghospel
@@ -12,6 +11,7 @@ builds:
     binary: ghospel
     goos:
       - darwin
+      - linux
     goarch:
       - amd64
       - arm64
@@ -35,7 +35,7 @@ archives:
 brews:
   - name: ghospel
     homepage: https://github.com/pascalwhoop/ghospel
-    description: "A blazing-fast, privacy-first command-line audio transcription tool for macOS"
+    description: "A blazing-fast, privacy-first command-line audio transcription tool"
     license: MIT
     repository:
       owner: pascalwhoop

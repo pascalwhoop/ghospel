@@ -4,12 +4,101 @@ on:
   push:
     tags:
       - 'v*'
+    branches:
+      - main  # Temporary: for testing CI workflow
 
 permissions:
   contents: write
 
 jobs:
+  # Build whisper.cpp binaries for each platform
+  build-binaries:
+    strategy:
+      matrix:
+        include:
+          - os: macos-latest
+            platform: darwin
+            archs: "arm64,amd64"
+          - os: ubuntu-latest
+            platform: linux
+            archs: "amd64,arm64"
+    runs-on: ${{ matrix.os }}
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+        submodules: recursive
+
+    - name: Install dependencies (macOS)
+      if: matrix.os == 'macos-latest'
+      run: |
+        brew install cmake make
+
+    - name: Install dependencies (Linux)
+      if: matrix.os == 'ubuntu-latest'
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y cmake make build-essential
+        # For ARM64 cross-compilation
+        sudo apt-get install -y gcc-aarch64-linux-gnu g++-aarch64-linux-gnu
+
+    - name: Build whisper.cpp binaries
+      run: |
+        cd whisper_cpp_source
+        mkdir -p ../internal/binaries
+        
+        # Build for each architecture
+        IFS=',' read -ra ARCH_ARRAY <<< "${{ matrix.archs }}"
+        for arch in "${ARCH_ARRAY[@]}"; do
+          echo "Building for ${{ matrix.platform }}-$arch"
+          
+          # Set up build directory
+          build_dir="build-${{ matrix.platform }}-$arch"
+          rm -rf "$build_dir"
+          
+          # Set platform-specific flags
+          cmake_flags=""
+          if [ "${{ matrix.platform }}" = "darwin" ]; then
+            if [ "$arch" = "arm64" ]; then
+              cmake_flags="-DCMAKE_OSX_ARCHITECTURES=arm64 -DGGML_METAL=ON -DGGML_METAL_EMBED_LIBRARY=ON"
+            else
+              cmake_flags="-DCMAKE_OSX_ARCHITECTURES=x86_64 -DGGML_METAL=ON -DGGML_METAL_EMBED_LIBRARY=ON"
+            fi
+          elif [ "${{ matrix.platform }}" = "linux" ]; then
+            if [ "$arch" = "arm64" ]; then
+              cmake_flags="-DCMAKE_SYSTEM_PROCESSOR=aarch64 -DCMAKE_C_COMPILER=aarch64-linux-gnu-gcc -DCMAKE_CXX_COMPILER=aarch64-linux-gnu-g++"
+            fi
+          fi
+          
+          # Build
+          cmake -B "$build_dir" $cmake_flags \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DWHISPER_BUILD_TESTS=OFF \
+            -DWHISPER_BUILD_SERVER=OFF
+          
+          cmake --build "$build_dir" -j$(nproc) --config Release
+          
+          # Copy binary
+          binary_name="whisper-cli-${{ matrix.platform }}-$arch"
+          if [ -f "$build_dir/bin/whisper-cli" ]; then
+            cp "$build_dir/bin/whisper-cli" "../internal/binaries/$binary_name"
+            echo "✅ Built $binary_name"
+          else
+            echo "❌ Failed to build $binary_name"
+            exit 1
+          fi
+        done
+
+    - name: Upload binaries as artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: whisper-binaries-${{ matrix.platform }}
+        path: internal/binaries/whisper-cli-*
+        retention-days: 1
+
+  # Release job that combines all binaries
   release:
+    needs: build-binaries
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v4
@@ -20,6 +109,17 @@ jobs:
       uses: actions/setup-go@v5
       with:
         go-version: '1.21'
+
+    - name: Download all binary artifacts
+      uses: actions/download-artifact@v4
+      with:
+        path: artifacts/
+
+    - name: Combine binaries
+      run: |
+        mkdir -p internal/binaries
+        find artifacts/ -name "whisper-cli-*" -exec cp {} internal/binaries/ \;
+        ls -la internal/binaries/
 
     - name: Run GoReleaser
       uses: goreleaser/goreleaser-action@v5
