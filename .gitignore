@@ -1,0 +1,69 @@
+
+# Binaries for programs and plugins
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+/ghospel
+
+# Test binary, built with `go test -c`
+*.test
+
+# Output of the go coverage tool, specifically when used with LiteIDE
+*.out
+
+# Dependency directories (remove the comment below to include it)
+# vendor/
+
+# Go workspace file
+go.work
+
+# IDE files
+.idea/
+*.swp
+*.swo
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Cache and temporary files
+/tmp/
+*.tmp
+*.temp
+
+# 3rd party libraries
+inspiration/
+# Test data
+data/
+outputs/
+*.mp3
+*.m4a
+*.wav
+*.flac
+*.mp4
+*.aac
+*.ogg
+*.txt
+
+# Model files
+*.bin
+
+# GoReleaser
+dist/
+
+# Build artifacts and temporary binaries
+internal/binaries/whisper-cli-*
+ghospel-dev
+ghospel-*
+
+# Submodule build directory
+whisper_cpp_source/
+
+.claude/

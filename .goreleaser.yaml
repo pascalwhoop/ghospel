@@ -1,0 +1,64 @@
+version: 2
+
+before:
+  hooks:
+    - go mod tidy
+    - make dev-setup
+    - ./scripts/build-release.sh
+
+builds:
+  - main: ./cmd/ghospel
+    id: "ghospel"
+    binary: ghospel
+    goos:
+      - darwin
+    goarch:
+      - amd64
+      - arm64
+    env:
+      - CGO_ENABLED=0
+    tags:
+      - release
+    ldflags:
+      - -s -w -X main.version={{.Version}} -X main.commit={{.Commit}} -X main.date={{.Date}}
+
+archives:
+  - format: tar.gz
+    name_template: >-
+      {{ .ProjectName }}_
+      {{- title .Os }}_
+      {{- if eq .Arch "amd64" }}x86_64
+      {{- else if eq .Arch "386" }}i386
+      {{- else }}{{ .Arch }}{{ end }}
+      {{- if .Arm }}v{{ .Arm }}{{ end }}
+
+brews:
+  - name: ghospel
+    homepage: https://github.com/pascalwhoop/ghospel
+    description: "A blazing-fast, privacy-first command-line audio transcription tool for macOS"
+    license: MIT
+    repository:
+      owner: pascalwhoop
+      name: homebrew-ghospel
+      branch: main
+    folder: Formula
+    dependencies:
+      - name: ffmpeg
+        type: required
+    install: |
+      bin.install "ghospel"
+    test: |
+      system "#{bin}/ghospel", "--version"
+
+checksum:
+  name_template: 'checksums.txt'
+
+snapshot:
+  name_template: "{{ incpatch .Version }}-next"
+
+changelog:
+  sort: asc
+  filters:
+    exclude:
+      - '^docs:'
+      - '^test:'

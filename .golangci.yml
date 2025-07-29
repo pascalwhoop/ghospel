@@ -1,0 +1,151 @@
+# golangci-lint configuration
+# https://golangci-lint.run/usage/configuration/
+
+run:
+  timeout: 5m
+  issues-exit-code: 1
+  tests: true
+  modules-download-mode: readonly
+
+output:
+  formats:
+    - format: colored-line-number
+  print-issued-lines: true
+  print-linter-name: true
+  sort-results: true
+
+linters-settings:
+  goimports:
+    local-prefixes: github.com/pascalwhoop/ghospel
+  
+  gofmt:
+    simplify: true
+  
+  gofumpt:
+    extra-rules: true
+  
+  govet:
+    enable-all: true
+    disable:
+      - fieldalignment  # Too noisy for this project
+  
+  staticcheck:
+    checks: ["all"]
+  
+  unused:
+    check-exported: false
+  
+  unparam:
+    check-exported: false
+  
+  gocritic:
+    enabled-tags:
+      - performance
+      - style
+      - experimental
+      - diagnostic
+    disabled-checks:
+      - whyNoLint
+      - unnamedResult
+  
+  revive:
+    rules:
+      - name: unexported-return
+        disabled: true
+      - name: unused-parameter
+        disabled: true
+  
+  errcheck:
+    check-type-assertions: true
+    check-blank: true
+  
+  gosec:
+    severity: medium
+    confidence: medium
+
+linters:
+  enable:
+    # Default linters
+    - errcheck      # Check for unchecked errors
+    - gosimple      # Simplify code
+    - govet         # Go vet examiner
+    - ineffassign   # Detect ineffectual assignments
+    - staticcheck   # Advanced static analysis
+    - typecheck     # Type checker
+    - unused        # Check for unused code (catches unused imports!)
+    
+    # Additional recommended linters
+    - goimports     # Fix imports and format code
+    - gofmt         # Format code
+    - gofumpt       # Stricter gofmt
+    - gocritic      # Comprehensive Go source code linter
+    - revive        # Fast, configurable, extensible, flexible linter
+    - gosec         # Security-focused linter
+    - unparam       # Unused function parameters
+    - unconvert     # Unnecessary type conversions
+    - misspell      # Spelling mistakes
+    - prealloc      # Slice preallocation
+    - copyloopvar   # Loop variable reference issues (replaces exportloopref)
+    
+    # Style and formatting
+    - gci           # Control import order
+    - whitespace    # Whitespace issues
+    - wsl           # Whitespace linter (forces empty lines)
+    
+  disable:
+    - cyclop        # Too strict cyclomatic complexity
+    - funlen        # Function length (can be noisy)
+    - gocognit      # Cognitive complexity (can be noisy)
+    - nestif        # Nested if statements (can be noisy)
+    - lll           # Line length (handled by editor)
+    - nlreturn      # New line return (too strict)
+    - wrapcheck     # Wrap errors (good practice but can be noisy)
+
+issues:
+  # Maximum issues count per one linter
+  max-issues-per-linter: 0
+  
+  # Maximum count of issues with the same text
+  max-same-issues: 0
+  
+  # Show only new issues: if there are unstaged changes or untracked files
+  new: false
+  
+  # Fix found issues (if supported by linter)
+  fix: false
+  
+  # Unique issues by line
+  uniq-by-line: true
+  
+  exclude-rules:
+    # Exclude some linters from running on tests files
+    - path: _test\.go
+      linters:
+        - gosec
+        - unparam
+        - unused
+    
+    # Exclude embed files from import checks
+    - path: internal/binaries/embed.*\.go
+      linters:
+        - goimports
+        - unused
+    
+    # Allow long lines in generated files
+    - path: ".*\\.pb\\.go"
+      linters:
+        - lll
+    
+    # Ignore certain issues in main.go (CLI setup can be verbose)
+    - path: cmd/ghospel/main\.go
+      linters:
+        - gocyclo
+        - funlen
+
+severity:
+  default-severity: error
+  rules:
+    - linters:
+        - revive
+        - stylecheck
+      severity: warning

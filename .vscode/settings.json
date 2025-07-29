@@ -1,0 +1,40 @@
+{
+  // Go language settings
+  "go.useLanguageServer": true,
+  "go.formatTool": "goimports",
+  "go.lintTool": "golangci-lint",
+  "go.lintOnSave": "package",
+  
+  // Auto-format on save
+  "editor.formatOnSave": true,
+  "editor.codeActionsOnSave": {
+    "source.organizeImports": "explicit"
+  },
+  
+  // Go-specific formatting
+  "[go]": {
+    "editor.formatOnSave": true,
+    "editor.insertSpaces": false,
+    "editor.tabSize": 4
+  },
+  
+  // golangci-lint integration
+  "go.lintFlags": [
+    "--fast"
+  ],
+  
+  // Go tools auto-install
+  "go.toolsManagement.autoUpdate": true,
+  
+  // Exclude patterns for file explorer
+  "files.exclude": {
+    "**/whisper_cpp_source/build": true,
+    "**/internal/binaries/whisper-cli-*": true
+  },
+  
+  // Files associations
+  "files.associations": {
+    "*.go": "go",
+    ".golangci.yml": "yaml"
+  }
+}
