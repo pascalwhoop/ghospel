@@ -68,3 +68,6 @@ whisper_cpp_source/build/
 whisper_cpp_source/models/
 
 .claude/
+
+# GitHub Actions artifacts directory
+artifacts/
