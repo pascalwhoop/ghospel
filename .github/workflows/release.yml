@@ -27,7 +27,6 @@ jobs:
     - uses: actions/checkout@v4
       with:
         fetch-depth: 0
-        submodules: recursive
 
     - name: Install dependencies (macOS)
       if: matrix.os == 'macos-latest'
@@ -42,12 +41,16 @@ jobs:
         # For ARM64 cross-compilation
         sudo apt-get install -y gcc-aarch64-linux-gnu g++-aarch64-linux-gnu
 
-    - name: Build whisper.cpp binaries
+    - name: Initialize submodule and build binaries
       run: |
-        cd whisper_cpp_source
-        mkdir -p ../internal/binaries
+        # Initialize whisper.cpp submodule
+        make dev-setup
         
-        # Build for each architecture
+        # Create binaries directory
+        mkdir -p internal/binaries
+        
+        # Build for each architecture using our existing build logic
+        cd whisper_cpp_source
         IFS=',' read -ra ARCH_ARRAY <<< "${{ matrix.archs }}"
         for arch in "${ARCH_ARRAY[@]}"; do
           echo "Building for ${{ matrix.platform }}-$arch"
